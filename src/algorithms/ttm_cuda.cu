@@ -140,9 +140,19 @@ SparseTensor tensor_times_matrix_cuda(SparseTensor& X, Tensor& U, size_t mode, C
     size_t kernel_blockDim_y = std::min(Y_subchunk_size, 1024 / Y_num_subchunks);
     assert(kernel_blockDim_y > 0);
     std::fprintf(stderr, "[CUDA TTM Kernel] Launch ttm_cuda_kernel<<<%zu, (%zu, %zu), 0>>()\n", Y.num_chunks, Y_num_subchunks, kernel_blockDim_y);
-    ttm_cuda_kernel<<<Y.num_chunks, dim3(Y_num_subchunks, kernel_blockDim_y), 0>>>(dev_fiberidx, X_indices_m, nrows, ncols, Y.chunk_size, Y_subchunk_size, X.chunk_size, Ustride, Y_values, X_values, U_values);
-    int result = cudaThreadSynchronize();
+
+    int count = 10;
+    Timer timer(cuda_dev->device_id);
+    timer.start();
+    for(int i = 0; i < count; ++i) {
+        ttm_cuda_kernel<<<Y.num_chunks, dim3(Y_num_subchunks, kernel_blockDim_y), 0>>>(dev_fiberidx, X_indices_m, nrows, ncols, Y.chunk_size, Y_subchunk_size, X.chunk_size, Ustride, Y_values, X_values, U_values);
+        cudaDeviceSynchronize();
+    }
+    timer.stop();
+    std::printf("\nAverage time: %.9lf s\n", timer.elapsed_time() / count);
+    
     timer_kernel.stop();
+    int result = cudaThreadSynchronize();
     timer_kernel.print_elapsed_time("CUDA TTM Kernel");
     ptiCheckCUDAError(result != 0);
 
